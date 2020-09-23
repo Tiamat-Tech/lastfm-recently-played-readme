@@ -3,6 +3,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { RecentTracksResponse } from '../../models/RecentTracksResponse';
 import PlaceholderImg from '../../public/placeholder.webp';
 import { generateSvg } from '../../utils/SvgUtil';
+import { performance } from 'perf_hooks';
 
 const defaultCount = 5;
 const minCount = 1;
@@ -15,6 +16,7 @@ const maxWidth = 1000;
 const BaseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
 
 export default async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
+    const t0 = performance.now();
     const { user } = req.query;
     if (!user) {
         res.statusCode = 400;
@@ -52,6 +54,8 @@ export default async (req: NextApiRequest, res: NextApiResponse): Promise<void> 
         return;
     }
 
+    const t1 = performance.now();
+
     try {
         const { data } = await axios.get<RecentTracksResponse>(
             'http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks',
@@ -64,7 +68,7 @@ export default async (req: NextApiRequest, res: NextApiResponse): Promise<void> 
                 },
             }
         );
-
+        const t2 = performance.now();
         // Set base64-encoded cover art images by routing through /api/proxy endpoint
         // This is needed because GitHub's Content Security Policy prohibits external images (inline allowed)
         for (const track of data.recenttracks.track) {
@@ -80,11 +84,16 @@ export default async (req: NextApiRequest, res: NextApiResponse): Promise<void> 
                 track.inlineimage = PlaceholderImg;
             }
         }
-
+        const t3 = performance.now();
         res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
         res.setHeader('Content-Type', 'image/svg+xml');
         res.statusCode = 200;
         res.send(generateSvg(data, width));
+        const t4 = performance.now();
+        console.log(`Performance 0-1: ${t1 - t0}`);
+        console.log(`Performance 1-2: ${t2 - t1}`);
+        console.log(`Performance 2-3: ${t3 - t2}`);
+        console.log(`Performance 3-4: ${t4 - t3}`);
     } catch (e) {
         const data = e?.response?.data;
         res.statusCode = 400;
